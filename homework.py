@@ -1,6 +1,6 @@
 ...
 
-load_dotenv()
+load_dotenv() 
 
 
 PRACTICUM_TOKEN = ...
