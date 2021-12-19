@@ -40,11 +40,11 @@ def send_message(bot, message):
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение успешно отправлено')
     except Exception as error:
-        logger.error('Ошибка при отправке сообщения')
+        logger.error(f'Ошибка при отправке сообщения {error}')
 
 
 def get_api_answer(current_timestamp):
-    """Получает список домашек"""
+    """Получает список домашек."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     try:
@@ -62,13 +62,13 @@ def get_api_answer(current_timestamp):
     try:
         response = response.json()
     except Exception as error:
-        logger.error('Ошибка форматирования json')
+        logger.error(f'Ошибка форматирования json {error}')
 
     return response
 
 
 def check_response(response):
-    """Проверяется ответ на запрос к API Яндекс.Домашка"""
+    """Проверяется ответ на запрос к API Яндекс.Домашка."""
     if not isinstance(response, dict):
         logger.error('Ответ от сервера не является словарем')
         raise TypeError('Ответ от сервера не является словарем')
@@ -91,7 +91,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    """Извлекает из информации о конкретной домашней работе статус этой работы"""
+    """Извлекает из информации о домашней работе статус этой работы."""
     if 'homework_name' not in homework:
         logger.error('В словаре нету ключа "homework_name"')
         raise KeyError('В словаре нету ключа "homework_name"')
@@ -111,7 +111,7 @@ def parse_status(homework):
 
 
 def check_tokens():
-    """Проверяет переменное окружение"""
+    """Проверяет переменное окружение."""
     return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
