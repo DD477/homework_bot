@@ -2,7 +2,9 @@ import datetime as dt
 import logging
 import os
 import time
+from exceptions import ResponseError
 from http import HTTPStatus
+from logging.handlers import RotatingFileHandler
 
 import requests
 import telegram
@@ -12,7 +14,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler()
+handler = RotatingFileHandler('logs.log', maxBytes=50000000, backupCount=5)
 logger.addHandler(handler)
 formatter = logging.Formatter('%(asctime)s - [%(levelname)s] - %(message)s')
 handler.setFormatter(formatter)
@@ -23,6 +25,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_TIME = 600
+MONTH_AGO = 60 * 60 * 24 * 30
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -39,7 +42,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение успешно отправлено')
-    except Exception as error:
+    except ValueError as error:
         logger.error(f'Ошибка при отправке сообщения {error}')
 
 
@@ -49,19 +52,19 @@ def get_api_answer(current_timestamp):
     params = {'from_date': timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    except Exception as error:
+    except ResponseError as error:
         logger.error(f'Ошибка запроса к API {error}')
-        raise Exception(f'Ошибка запроса к API {error}')
+        raise ResponseError(f'Ошибка запроса к API {error}')
 
     if response.status_code != HTTPStatus.OK:
         logger.error('Ошибка ответа от сервера '
                      f'{response.status_code} != 200')
-        raise Exception('Ошибка ответа от сервера '
-                        f'{response.status_code} != 200')
+        raise ResponseError('Ошибка ответа от сервера '
+                            f'{response.status_code} != 200')
 
     try:
         response = response.json()
-    except Exception as error:
+    except ValueError as error:
         logger.error(f'Ошибка форматирования json {error}')
 
     return response
@@ -69,9 +72,10 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Проверяется ответ на запрос к API Яндекс.Домашка."""
+    error_msg = 'Ответ от сервера не является словарем'
     if not isinstance(response, dict):
-        logger.error('Ответ от сервера не является словарем')
-        raise TypeError('Ответ от сервера не является словарем')
+        logger.error(error_msg)
+        raise TypeError(error_msg)
 
     key = 'homeworks'
     if key not in response:
@@ -131,9 +135,9 @@ def main():
         exit()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time()) - 60 * 60 * 24 * 30
-    old_msg = ''
-    old_message = ''
+    current_timestamp = int(time.time()) - MONTH_AGO
+    old_msg = None
+    old_message = None
 
     while True:
         try:
