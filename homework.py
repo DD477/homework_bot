@@ -9,10 +9,11 @@ from logging.handlers import RotatingFileHandler
 import requests
 import telegram
 from dotenv import load_dotenv
-from requests.adapters import HTTPAdapter
+# from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
 from telegram.error import TelegramError
-from urllib3.util.retry import Retry
+
+# from urllib3.util.retry import Retry
 
 load_dotenv()
 
