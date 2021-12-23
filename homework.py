@@ -1,20 +1,24 @@
-import datetime as dt
 import logging
 import os
 import time
-from exceptions import ResponseError
+from exceptions import ResponseIsNot200
 from http import HTTPStatus
+from json import JSONDecodeError
 from logging.handlers import RotatingFileHandler
 
 import requests
 import telegram
 from dotenv import load_dotenv
+from requests.adapters import HTTPAdapter
+from requests.exceptions import RequestException
+from telegram.error import TelegramError
+from urllib3.util.retry import Retry
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = RotatingFileHandler('logs.log', maxBytes=50000000, backupCount=5)
+handler = RotatingFileHandler('logs.log', maxBytes=50_000_000, backupCount=5)
 logger.addHandler(handler)
 formatter = logging.Formatter('%(asctime)s - [%(levelname)s] - %(message)s')
 handler.setFormatter(formatter)
@@ -24,7 +28,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
+RETRY_TIME_S = 600
 MONTH_AGO = 60 * 60 * 24 * 30
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -42,7 +46,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение успешно отправлено')
-    except ValueError as error:
+    except TelegramError as error:
         logger.error(f'Ошибка при отправке сообщения {error}')
 
 
@@ -51,20 +55,26 @@ def get_api_answer(current_timestamp):
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    except ResponseError as error:
+        s = requests.Session()
+        retries = Retry(total=5,
+                        backoff_factor=0.1,
+                        status_forcelist=[500, 502, 503, 504])
+        s.mount('https://', HTTPAdapter(max_retries=retries))
+        response = s.get(ENDPOINT, headers=HEADERS, params=params)
+        response.raise_for_status()
+    except RequestException as error:
         logger.error(f'Ошибка запроса к API {error}')
-        raise ResponseError(f'Ошибка запроса к API {error}')
+        raise RequestException(f'Ошибка запроса к API {error}')
 
     if response.status_code != HTTPStatus.OK:
         logger.error('Ошибка ответа от сервера '
                      f'{response.status_code} != 200')
-        raise ResponseError('Ошибка ответа от сервера '
-                            f'{response.status_code} != 200')
+        raise ResponseIsNot200('Ошибка ответа от сервера '
+                               f'{response.status_code} != 200')
 
     try:
         response = response.json()
-    except ValueError as error:
+    except JSONDecodeError as error:
         logger.error(f'Ошибка форматирования json {error}')
 
     return response
@@ -72,8 +82,8 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Проверяется ответ на запрос к API Яндекс.Домашка."""
-    error_msg = 'Ответ от сервера не является словарем'
     if not isinstance(response, dict):
+        error_msg = 'Ответ от сервера не является словарем'
         logger.error(error_msg)
         raise TypeError(error_msg)
 
@@ -119,15 +129,6 @@ def check_tokens():
     return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
-def get_unix_time(time_str):
-    """Получает время последней проверки домашней работы.
-    Отдает результат в форамате timestamp.
-    """
-    timestamp = dt.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ")
-    timestamp = int(time.mktime(timestamp.timetuple()))
-    return timestamp
-
-
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
@@ -136,21 +137,18 @@ def main():
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time()) - MONTH_AGO
-    old_msg = None
     old_message = None
 
     while True:
         try:
             response = get_api_answer(current_timestamp)
             answer = check_response(response)
-            message = parse_status(answer[0])
-            if message != old_msg:
+            if answer != []:
+                message = parse_status(answer[0])
                 send_message(bot, message)
-                old_msg = message
             else:
                 logger.debug('Статус не обновился')
-            current_timestamp = get_unix_time(answer[0]['date_updated'])
-            time.sleep(RETRY_TIME)
+            current_timestamp = response['current_date']
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
@@ -158,7 +156,7 @@ def main():
             if message != old_message:
                 send_message(bot, message)
                 old_message = message
-            time.sleep(RETRY_TIME)
+        time.sleep(RETRY_TIME_S)
 
 
 if __name__ == '__main__':
