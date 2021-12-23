@@ -55,13 +55,15 @@ def get_api_answer(current_timestamp):
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     try:
-        s = requests.Session()
-        retries = Retry(total=5,
-                        backoff_factor=0.1,
-                        status_forcelist=[500, 502, 503, 504])
-        s.mount('https://', HTTPAdapter(max_retries=retries))
-        response = s.get(ENDPOINT, headers=HEADERS, params=params)
-        response.raise_for_status()
+        # тесты не пропускают
+        # s = requests.Session()
+        # retries = Retry(total=5,
+        #                 backoff_factor=0.1,
+        #                 status_forcelist=[500, 502, 503, 504])
+        # s.mount('https://', HTTPAdapter(max_retries=retries))
+        # response = s.get(ENDPOINT, headers=HEADERS, params=params)
+        # response.raise_for_status()
+        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except RequestException as error:
         logger.error(f'Ошибка запроса к API {error}')
         raise RequestException(f'Ошибка запроса к API {error}')
