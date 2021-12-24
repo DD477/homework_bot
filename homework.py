@@ -66,37 +66,29 @@ def get_api_answer(current_timestamp):
         # response.raise_for_status()
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except RequestException as error:
-        logger.error(f'Ошибка запроса к API {error}')
         raise RequestException(f'Ошибка запроса к API {error}')
 
     if response.status_code != HTTPStatus.OK:
-        logger.error('Ошибка ответа от сервера '
-                     f'{response.status_code} != 200')
         raise ResponseIsNot200('Ошибка ответа от сервера '
                                f'{response.status_code} != 200')
 
     try:
         response = response.json()
+        return response
     except JSONDecodeError as error:
-        logger.error(f'Ошибка форматирования json {error}')
-
-    return response
+        raise JSONDecodeError(f'Ошибка форматирования json {error}')
 
 
 def check_response(response):
     """Проверяется ответ на запрос к API Яндекс.Домашка."""
     if not isinstance(response, dict):
-        error_msg = 'Ответ от сервера не является словарем'
-        logger.error(error_msg)
-        raise TypeError(error_msg)
+        raise TypeError('Ответ от сервера не является словарем')
 
     key = 'homeworks'
     if key not in response:
-        logger.error(f'Ответ от сервера не содержит ключ {key}')
         raise KeyError(f'Ответ от сервера не содержит ключ {key}')
 
     if not isinstance(response[key], list):
-        logger.error(f'Ответ под ключом {key} приходят не в виде списка')
         raise TypeError(f'Ответ под ключом {key} приходят не в виде списка')
 
     try:
@@ -110,17 +102,14 @@ def check_response(response):
 def parse_status(homework):
     """Извлекает из информации о домашней работе статус этой работы."""
     if 'homework_name' not in homework:
-        logger.error('В словаре нету ключа "homework_name"')
         raise KeyError('В словаре нету ключа "homework_name"')
     homework_name = homework.get('homework_name')
 
     if 'status' not in homework:
-        logger.error('В словаре нету ключа "status"')
         raise KeyError('В словаре нету ключа "status"')
     homework_status = homework.get('status')
 
     if homework_status not in HOMEWORK_STATUSES:
-        logger.error(f'В словаре нету ключа {homework_status}')
         raise KeyError(f'В словаре нету ключа {homework_status}')
     verdict = HOMEWORK_STATUSES[homework_status]
 
@@ -146,7 +135,7 @@ def main():
         try:
             response = get_api_answer(current_timestamp)
             answer = check_response(response)
-            if answer != []:
+            if answer:
                 message = parse_status(answer[0])
                 send_message(bot, message)
             else:
