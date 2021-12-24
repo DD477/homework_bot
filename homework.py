@@ -9,11 +9,10 @@ from logging.handlers import RotatingFileHandler
 import requests
 import telegram
 from dotenv import load_dotenv
-# from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
 from telegram.error import TelegramError
-
-# from urllib3.util.retry import Retry
+from urllib3.util.retry import Retry
 
 load_dotenv()
 
@@ -56,15 +55,13 @@ def get_api_answer(current_timestamp):
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     try:
-        # тесты не пропускают
-        # s = requests.Session()
-        # retries = Retry(total=5,
-        #                 backoff_factor=0.1,
-        #                 status_forcelist=[500, 502, 503, 504])
-        # s.mount('https://', HTTPAdapter(max_retries=retries))
-        # response = s.get(ENDPOINT, headers=HEADERS, params=params)
-        # response.raise_for_status()
-        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        s = requests.Session()
+        retries = Retry(total=5,
+                        backoff_factor=0.1,
+                        status_forcelist=[500, 502, 503, 504])
+        s.mount('https://', HTTPAdapter(max_retries=retries))
+        response = s.get(ENDPOINT, headers=HEADERS, params=params)
+        response.raise_for_status()
     except RequestException as error:
         raise RequestException(f'Ошибка запроса к API {error}')
 
@@ -73,8 +70,7 @@ def get_api_answer(current_timestamp):
                                f'{response.status_code} != 200')
 
     try:
-        response = response.json()
-        return response
+        return response.json()
     except JSONDecodeError as error:
         raise JSONDecodeError(f'Ошибка форматирования json {error}')
 
