@@ -41,7 +41,7 @@ Telegram бот для оповещения о проверки домашнег
    ```
 - Установить зависимости из файла requirements.txt
    ```sh
-   pip install -r ./backend/requirements.txt
+   pip install -r requirements.txt
    ```
 - Создать файл `.env` в корне, с необходимым содержимым
   ```sh
